@@ -111,7 +111,12 @@ module MultivariateStats
     FactorAnalysis,         # Type: the Factor Analysis model
 
     faem,                   # Maximum likelihood probabilistic PCA
-    facm                    # EM algorithm for probabilistic PCA
+    facm,                   # EM algorithm for probabilistic PCA
+
+    # ca
+    CA,                     # Type: The Correspondence Analysis model
+
+    CrossTable              # Structure for contingency table
 
 
     ## source files
@@ -126,5 +131,7 @@ module MultivariateStats
     include("lda.jl")
     include("ica.jl")
     include("fa.jl")
+    include("ca.jl")
+    # include("mca.jl")
 
 end # module
