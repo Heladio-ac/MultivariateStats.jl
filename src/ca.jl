@@ -1,5 +1,34 @@
 # Correspondence Analysis
 
+# CA type
+
+struct CA{R, S, T<:Real}
+    C::CrossTable{R, S, T}  # frequency table
+    w_x::Vector{T}          # row weights
+    w_y::Vector{T}          # column weights
+    M::Matrix{T}            # deviation matrix
+    proj::Matrix{T}         # projection matrix
+end
+
+function CA(X::Vector{R}, Y::Vector{S})
+    C = CrossTable(X, Y)
+    n = sum(C)
+    C = C / n
+    nrows, ncols = size(C)
+    w_x = C * ones(eltype(C), ncols)
+    w_y = ones(eltype(C), 1, nrows) * C
+    M = C - w_x * w_y
+    CA(C, w_x, w_y, M)
+end
+
+function CA(XY::Matrix{Union{R, S}})
+    X = XY[:, 1]
+    Y = XY[:, 2]
+    CA(X, Y)
+end
+
+
+# Cross tabulation matrix
 struct CrossTable{R, S, T<:Integer}
     C::Matrix{T}
     rows::Dict{R, T}
@@ -31,9 +60,4 @@ function CrossTable(X::Vector{R}, Y::Vector{S}) where {R, S}
     end
 
     CrossTable(table, x_indices, y_indices)
-end
-
-
-struct CA{T<:Real}
-
 end
