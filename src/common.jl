@@ -149,3 +149,54 @@ end
 
 pairwise(kernel::Function, X::AbstractVecOrMat{T}) where T<:AbstractFloat =
     pairwise(kernel, X, X)
+
+# calculate cross tabulation of 2 variables
+function crosstab(X::Matrix{R}) where R
+    nrows, ncols = size(X)
+    @assert ncols == 2 "Use a burt table for more than 2 variables"
+
+    crosstab(X[:, 1], X[:, 2])
+end
+
+function crosstab(X::Vector{R}, Y::Vector{S}) where {R, S}
+    x_n = length(X)
+    y_n = length(Y)
+
+    @assert x_n == y_n "Both vectors must contain the same number of elements"
+
+    x_values = unique(X)
+    y_values = unique(Y)
+
+    x_values_n = length(x_values)
+    y_values_n = length(y_values)
+
+    x_indices = Dict{R, Int}(zip(x_values, 1:x_values_n))
+    y_indices = Dict{S, Int}(zip(y_values, 1:y_values_n))
+
+    table = zeros(Int, x_values_n, y_values_n)
+
+    for pair in zip(X, Y)
+        x_index = x_indices[pair[1]]
+        y_index = y_indices[pair[2]]
+        table[x_index, y_index] += 1
+    end
+
+    return table, x_indices, y_indices
+end
+
+# Calculate χ² statistic
+function preprocess_crosstab(C::Matrix{T}) where {T<:Int}
+    n = sum(C)
+    # Frequency matrix
+    F = C / n
+    nrows, ncols = size(C)
+
+    # joint probability distribution
+    wₘ = F * ones(eltype(F), ncols)
+    wₙ = ones(eltype(F), 1, nrows) * F
+
+    # χ² statistic
+    M = F - wₘ * wₙ
+
+    return M, wₘ, wₙ
+end

@@ -2,62 +2,64 @@
 
 # CA type
 
-struct CA{R, S, T<:Real}
-    C::CrossTable{R, S, T}  # frequency table
-    w_x::Vector{T}          # row weights
-    w_y::Vector{T}          # column weights
-    M::Matrix{T}            # deviation matrix
+struct CA{T<:Real}
+    mean::Vector{T}         # mean vector
     proj::Matrix{T}         # projection matrix
+    prinvars::Vector{T}     # principal variances: of length p
+    tprinvar::T             # total principal variance, i.e. sum(prinvars)
+    tvar::T                 # total input variance
 end
 
-function CA(X::Vector{R}, Y::Vector{S})
-    C = CrossTable(X, Y)
-    n = sum(C)
-    C = C / n
-    nrows, ncols = size(C)
-    w_x = C * ones(eltype(C), ncols)
-    w_y = ones(eltype(C), 1, nrows) * C
-    M = C - w_x * w_y
-    CA(C, w_x, w_y, M)
+function CA(mean::Vector{T}, proj::Matrix{T}, pvars::Vector{T}, tvar::T) where {T<:Real}
+    d, p = size(proj)
+    (isempty(mean) || length(mean) == d) ||
+        throw(DimensionMismatch("Dimensions of mean and proj are inconsistent."))
+    length(pvars) == p ||
+        throw(DimensionMismatch("Dimensions of proj and pvars are inconsistent."))
+    tpvar = sum(pvars)
+    tpvar <= tvar || isapprox(tpvar,tvar) || throw(ArgumentError("principal variance cannot exceed total variance."))
+    CA(mean, proj, pvars, tpvar, tvar)
 end
 
-function CA(XY::Matrix{Union{R, S}})
-    X = XY[:, 1]
-    Y = XY[:, 2]
-    CA(X, Y)
-end
+function fit(::Type{CA}, X::AbstractMatrix{T};
+             method::Symbol=:auto,
+             maxoutdim::Int=size(X,1),
+             mean=nothing) where {T}
 
+    C, x_indices, y_indices = crosstab(X)
+    M, wₘ, wₙ = preprocess_crosstab(C)
+    d, n = size(M)
 
-# Cross tabulation matrix
-struct CrossTable{R, S, T<:Integer}
-    C::Matrix{T}
-    rows::Dict{R, T}
-    cols::Dict{S, T}
-end
+    mv = preprocess_mean(M, mean)
 
-# constructor
-function CrossTable(X::Vector{R}, Y::Vector{S}) where {R, S}
-    x_n = size(X)
-    y_n = size(Y)
+    Z::Matrix{eltype(M)} = centralize(M, mv)
 
-    @assert x_n == y_n "Both vectors must contain the same number of elements"
+    SVD = svd(Z)
+    S = SVD.S
+    U = SVD.U
 
-    x_values = unique(X)
-    y_values = unique(Y)
-
-    x_values_n = length(x_values)
-    y_values_n = length(y_values)
-
-    x_indices = Dict{R, Int}(zip(x_values, 1:x_values_n))
-    y_indices = Dict{S, Int}(zip(y_values, 1:y_values_n))
-
-    table = zeros(Int, x_values_n, y_values_n)
-
-    for pair in zip(X, Y)
-        x_index = x_indices[pair[1]]
-        y_index = y_indices[pair[2]]
-        table[x_index, y_index] += 1
+    for i = 1:length(S)
+        @inbounds S[i] = abs2(S[i]) / n
     end
 
-    CrossTable(table, x_indices, y_indices)
+    ord = sortperm(S; rev=true)
+    var_sum = sum(S)
+
+    CA(mv, U[:, ord], S[ord], var_sum)
 end
+
+function transform()
+end
+
+mean(M::CA) = M.mean
+
+indim(M::PCA) = size(M.proj, 1)
+outdim(M::CA) = size(M.proj, 2)
+
+projection(M::PCA) = M.proj
+
+principalvar(M::PCA, i::Int) = M.prinvars[i]
+principalvars(M::PCA) = M.prinvars
+
+transform(M::PCA{T}, x::AbstractVecOrMat{T}) where {T<:Real} = transpose(M.proj) * centralize(x, M.mean)
+reconstruct(M::PCA{T}, y::AbstractVecOrMat{T}) where {T<:Real} = decentralize(M.proj * y, M.mean)

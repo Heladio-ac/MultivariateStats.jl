@@ -116,7 +116,8 @@ module MultivariateStats
     # ca
     CA,                     # Type: The Correspondence Analysis model
 
-    CrossTable              # Structure for contingency table
+    crosstab                # Structure for contingency table
+
 
 
     ## source files
